@@ -9,12 +9,16 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
 
+import org.jboss.resteasy.reactive.RestResponse;
+import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 import org.tkit.onecx.chat.domain.daos.ChatDAO;
 import org.tkit.onecx.chat.rs.internal.mappers.ConversationEntryMapper;
+import org.tkit.onecx.chat.rs.internal.mappers.ExceptionMapper;
 import org.tkit.onecx.chat.rs.internal.services.ConversationEntryService;
 
 import gen.org.tkit.onecx.chat.rs.internal.ConversationEntriesInternalApi;
 import gen.org.tkit.onecx.chat.rs.internal.model.CreateOrUpdateConversationEntryDTO;
+import gen.org.tkit.onecx.chat.rs.internal.model.ProblemDetailResponseDTO;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -30,6 +34,9 @@ public class ConversationEntriesRestController implements ConversationEntriesInt
 
     @Inject
     ConversationEntryMapper mapper;
+
+    @Inject
+    ExceptionMapper exceptionMapper;
 
     @Context
     UriInfo uriInfo;
@@ -65,5 +72,10 @@ public class ConversationEntriesRestController implements ConversationEntriesInt
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         return Response.ok(mapper.mapList(service.replay(chat))).build();
+    }
+
+    @ServerExceptionMapper
+    public RestResponse<ProblemDetailResponseDTO> restException(Exception ex) {
+        return exceptionMapper.genericException(ex);
     }
 }

@@ -14,6 +14,7 @@ Conversation Entries are a sequence-ordered, idempotent-write persistence model 
 * Writes whose `text` does not extend the stored text are rejected with `409 Conflict`.
 * Setting `status` to `COMPLETED` or `INTERRUPTED` finalizes the entry exactly once.
 * Once terminal, the entry is immutable and any further write for that `idempotencyKey` returns `409 Conflict`.
+* Omitting `text` (i.e. `text: null`) in a request is treated as "no text change requested" — the stored cumulative text is left as-is. This lets a caller finalize an entry's `status` (`COMPLETED`/`INTERRUPTED`) without resending the full cumulative text.
 
 == Replay Contract
 

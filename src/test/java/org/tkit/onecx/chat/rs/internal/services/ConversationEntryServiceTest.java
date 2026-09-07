@@ -7,6 +7,7 @@ import jakarta.inject.Inject;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.tkit.onecx.chat.domain.daos.ChatDAO;
+import org.tkit.onecx.chat.domain.models.ConversationEntry;
 import org.tkit.quarkus.test.WithDBData;
 
 import gen.org.tkit.onecx.chat.rs.internal.model.ConversationEntryStatusDTO;
@@ -87,6 +88,23 @@ class ConversationEntryServiceTest {
 
         Assertions.assertThrows(ConversationEntryService.ConversationEntryConflictException.class,
                 () -> service.createOrUpdate(chat, dtoWithText("idem-terminal-1", "Done")));
+    }
+
+    @Test
+    void finalizingWithoutResendingTextKeepsExistingText() {
+        var chat = chatDao.findById("chat-22-222");
+
+        service.createOrUpdate(chat, dtoWithText("idem-finalize-1", "Hello world"));
+
+        var finalizeDto = new CreateOrUpdateConversationEntryDTO();
+        finalizeDto.setIdempotencyKey("idem-finalize-1");
+        finalizeDto.setEntryType(ConversationEntryTypeDTO.HUMAN_UTTERANCE);
+        finalizeDto.setStatus(ConversationEntryStatusDTO.COMPLETED);
+
+        var outcome = service.createOrUpdate(chat, finalizeDto);
+
+        assertThat(outcome.getEntry().getText()).isEqualTo("Hello world");
+        assertThat(outcome.getEntry().getStatus()).isEqualTo(ConversationEntry.Status.COMPLETED);
     }
 
     @Test

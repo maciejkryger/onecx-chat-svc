@@ -1505,6 +1505,84 @@ class ChatsRestControllerTest extends AbstractTest {
                 .statusCode(NOT_FOUND.getStatusCode());
     }
 
+    @Test
+    void addOrUpdateConversationEntryMonotonicCheckpointViolationTest() {
+        var chat = createAiChatForConversationEntries();
+
+        // First request: create entry with text "Hello World"
+        var createEntry = new CreateOrUpdateConversationEntryDTO();
+        createEntry.setStatus(EntryStatusDTO.IN_PROGRESS);
+        createEntry.setText("Hello World");
+        createEntry.setIdempotencyKey("monotonic-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(createEntry)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        // Second request: try to update with SHORTER text (violates monotonic checkpoint)
+        var violatingUpdate = new CreateOrUpdateConversationEntryDTO();
+        violatingUpdate.setStatus(EntryStatusDTO.IN_PROGRESS);
+        violatingUpdate.setText("Hello"); // Shorter than "Hello World" - should fail
+        violatingUpdate.setIdempotencyKey("monotonic-key");
+
+        var exception = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(violatingUpdate)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(BAD_REQUEST.getStatusCode())
+                .extract().as(ProblemDetailResponseDTO.class);
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getDetail()).contains("cumulative", "monotonic");
+    }
+
+    @Test
+    void addOrUpdateConversationEntryTerminalStateProtectionTest() {
+        var chat = createAiChatForConversationEntries();
+
+        // First request: create entry and immediately complete it
+        var createCompleted = new CreateOrUpdateConversationEntryDTO();
+        createCompleted.setStatus(EntryStatusDTO.COMPLETED);
+        createCompleted.setText("Completed entry");
+        createCompleted.setIdempotencyKey("terminal-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(createCompleted)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        // Second request: try to update terminal entry (should fail with 500 or 409)
+        var updateTerminal = new CreateOrUpdateConversationEntryDTO();
+        updateTerminal.setStatus(EntryStatusDTO.IN_PROGRESS);
+        updateTerminal.setText("Completed entry - trying to update");
+        updateTerminal.setIdempotencyKey("terminal-key");
+
+        var response = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(updateTerminal)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(BAD_REQUEST.getStatusCode())
+                .extract().as(ProblemDetailResponseDTO.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getDetail()).contains("terminal");
+    }
+
     private ChatDTO createAiChatForConversationEntries() {
         var chatDto = new CreateChatDTO();
         chatDto.setAppId("appId");

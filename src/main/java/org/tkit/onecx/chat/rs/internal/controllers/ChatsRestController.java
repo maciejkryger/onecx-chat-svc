@@ -233,4 +233,21 @@ public class ChatsRestController implements ChatsInternalApi {
     public RestResponse<ProblemDetailResponseDTO> restException(ClientWebApplicationException ex) {
         return exceptionMapper.clientException(ex);
     }
+
+    @ServerExceptionMapper
+    public RestResponse<ProblemDetailResponseDTO> idempotencyConflict(
+            org.tkit.onecx.chat.rs.internal.services.IdempotencyConflictException ex) {
+        var dto = new ProblemDetailResponseDTO();
+        dto.setErrorCode("IDEMPOTENCY_CONFLICT");
+        dto.setDetail(ex.getMessage());
+        return RestResponse.status(Response.Status.BAD_REQUEST, dto);
+    }
+
+    @ServerExceptionMapper
+    public RestResponse<ProblemDetailResponseDTO> illegalState(IllegalStateException ex) {
+        var dto = new ProblemDetailResponseDTO();
+        dto.setErrorCode("INVALID_STATE");
+        dto.setDetail(ex.getMessage());
+        return RestResponse.status(Response.Status.BAD_REQUEST, dto);
+    }
 }

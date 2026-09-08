@@ -11,13 +11,19 @@ import jakarta.transaction.Transactional;
 import org.tkit.onecx.chat.domain.daos.ConversationEntryDAO;
 import org.tkit.onecx.chat.domain.models.Chat;
 import org.tkit.onecx.chat.domain.models.ConversationEntry;
+import org.tkit.onecx.chat.rs.internal.mappers.ChatMapper;
+
+import gen.org.tkit.onecx.chat.rs.internal.model.CreateOrUpdateConversationEntryDTO;
 
 @ApplicationScoped
-@Transactional
+@Transactional(Transactional.TxType.NOT_SUPPORTED)
 public class ConversationEntryService {
 
     @Inject
     ConversationEntryDAO dao;
+
+    @Inject
+    ChatMapper chatMapper;
 
     /**
      * Creates a new conversation entry or updates an existing one
@@ -29,16 +35,18 @@ public class ConversationEntryService {
      * - incompatible retries result in conflict
      * - terminal entries cannot be modified
      */
-    public ConversationEntry createOrUpdate(Chat chat, String idempotencyKey, ConversationEntry.EntryType type,
-            ConversationEntry.EntryStatus status, String text) {
-
+    @Transactional
+    public ConversationEntry createOrUpdate(Chat chat, CreateOrUpdateConversationEntryDTO entry) {
+        final String idempotencyKey = entry.getIdempotencyKey();
+        ConversationEntry.EntryStatus actualStatus = chatMapper.mapConversationStatus(entry.getStatus());
+        final String newText = entry.getText();
         Optional<ConversationEntry> existing = dao.findByChatAndIdempotencyKey(chat, idempotencyKey);
 
         if (existing.isPresent()) {
-            return update(existing.get(), status, text);
+            return update(existing.get(), actualStatus, newText);
         }
 
-        return create(chat, idempotencyKey, type, status, text);
+        return create(chat, idempotencyKey, ConversationEntry.EntryType.HUMAN, actualStatus, newText);
     }
 
     /**
@@ -47,7 +55,6 @@ public class ConversationEntryService {
      * DAO already filters out IN_PROGRESS entries and
      * returns data ordered by sequence.
      */
-    @Transactional(Transactional.TxType.SUPPORTS)
     public List<ConversationEntry> replay(Chat chat) {
         return dao.findReplayEntries(chat);
     }

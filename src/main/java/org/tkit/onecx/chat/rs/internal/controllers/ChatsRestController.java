@@ -2,7 +2,8 @@ package org.tkit.onecx.chat.rs.internal.controllers;
 
 import static jakarta.transaction.Transactional.TxType.NOT_SUPPORTED;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -21,11 +22,13 @@ import org.tkit.onecx.chat.domain.daos.ChatDAO;
 import org.tkit.onecx.chat.domain.daos.MessageDAO;
 import org.tkit.onecx.chat.domain.daos.ParticipantDAO;
 import org.tkit.onecx.chat.domain.models.Chat;
+import org.tkit.onecx.chat.domain.models.ConversationEntry;
 import org.tkit.onecx.chat.domain.models.Message;
 import org.tkit.onecx.chat.domain.models.Participant;
 import org.tkit.onecx.chat.rs.internal.mappers.ChatMapper;
 import org.tkit.onecx.chat.rs.internal.mappers.ExceptionMapper;
 import org.tkit.onecx.chat.rs.internal.services.ChatsService;
+import org.tkit.onecx.chat.rs.internal.services.ConversationEntryService;
 
 import gen.org.tkit.onecx.chat.rs.internal.ChatsInternalApi;
 import gen.org.tkit.onecx.chat.rs.internal.model.*;
@@ -38,6 +41,9 @@ public class ChatsRestController implements ChatsInternalApi {
 
     @Inject
     ChatsService service;
+
+    @Inject
+    ConversationEntryService conversationEntryService;
 
     @Inject
     ChatDAO dao;
@@ -187,6 +193,27 @@ public class ChatsRestController implements ChatsInternalApi {
         List<Participant> participantList = new ArrayList<>(participants);
         return Response.ok(mapper.mapParticipantList(participantList)).build();
 
+    }
+
+    @Override
+    public Response addOrUpdateConversationEntry(String chatId,
+            CreateOrUpdateConversationEntryDTO createOrUpdateConversationEntryDTO) {
+        var chat = dao.findById(chatId);
+        if (chat == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        conversationEntryService.createOrUpdate(chat, createOrUpdateConversationEntryDTO);
+        return Response.noContent().build();
+    }
+
+    @Override
+    public Response getConversationEntriesByChatId(String chatId) {
+        var chat = dao.findById(chatId);
+        if (chat == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        List<ConversationEntry> entries = conversationEntryService.replay(chat);
+        return Response.ok(mapper.mapEntries(entries)).build();
     }
 
     @ServerExceptionMapper

@@ -1323,6 +1323,208 @@ class ChatsRestControllerTest extends AbstractTest {
                 .statusCode(expectedStatus);
     }
 
+    @Test
+    void createConversationEntryTest() {
+        var conversationEntryDto = new CreateOrUpdateConversationEntryDTO();
+        conversationEntryDto.setStatus(EntryStatusDTO.COMPLETED);
+        conversationEntryDto.setText("What is the weather today?");
+        conversationEntryDto.setIdempotencyKey("unique-key-123");
+
+        var chat = createAiChatForConversationEntries();
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .when()
+                .contentType(APPLICATION_JSON)
+                .body(conversationEntryDto)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var entries = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .get("{chatId}/conversation-entries")
+                .then()
+                .statusCode(OK.getStatusCode())
+                .extract()
+                .as(new TypeRef<List<ChatConversationEntryDTO>>() {
+                });
+
+        assertThat(entries).isNotNull().hasSize(1);
+        assertThat(entries.get(0).getSequenceNumber()).isEqualTo(1);
+        assertThat(entries.get(0).getIdempotencyKey()).isEqualTo("unique-key-123");
+        assertThat(entries.get(0).getText()).isEqualTo("What is the weather today?");
+
+    }
+
+    @Test
+    void getConversationEntriesTest() {
+
+        var chat = createAiChatForConversationEntries();
+
+        var inProgressEntry = new CreateOrUpdateConversationEntryDTO();
+        inProgressEntry.setStatus(EntryStatusDTO.IN_PROGRESS);
+        inProgressEntry.setText("Hello");
+        inProgressEntry.setIdempotencyKey("in-progress-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(inProgressEntry)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var completedEntry = new CreateOrUpdateConversationEntryDTO();
+        completedEntry.setStatus(EntryStatusDTO.COMPLETED);
+        completedEntry.setText("Hello world");
+        completedEntry.setIdempotencyKey("completed-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(completedEntry)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var response = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .get("{chatId}/conversation-entries")
+                .then()
+                .statusCode(OK.getStatusCode())
+                .contentType(APPLICATION_JSON)
+                .extract()
+                .as(new TypeRef<List<ChatConversationEntryDTO>>() {
+                });
+
+        assertThat(response).isNotNull().hasSize(1);
+        assertThat(response.get(0).getIdempotencyKey()).isEqualTo("completed-key");
+        assertThat(response.get(0).getStatus()).isEqualTo(EntryStatusDTO.COMPLETED);
+    }
+
+    @Test
+    void addOrUpdateConversationEntryShouldUpdateExistingEntryTest() {
+        var chat = createAiChatForConversationEntries();
+
+        var createEntry = new CreateOrUpdateConversationEntryDTO();
+        createEntry.setStatus(EntryStatusDTO.IN_PROGRESS);
+        createEntry.setText("Hel");
+        createEntry.setIdempotencyKey("update-key");
+
+        var created = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(createEntry)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var afterCreate = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .get("{chatId}/conversation-entries")
+                .then()
+                .statusCode(OK.getStatusCode())
+                .extract()
+                .as(new TypeRef<List<ChatConversationEntryDTO>>() {
+                });
+
+        var updateEntry = new CreateOrUpdateConversationEntryDTO();
+        updateEntry.setStatus(EntryStatusDTO.COMPLETED);
+        updateEntry.setText("Hello");
+        updateEntry.setIdempotencyKey("update-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(updateEntry)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var entries = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .get("{chatId}/conversation-entries")
+                .then()
+                .statusCode(OK.getStatusCode())
+                .extract()
+                .as(new TypeRef<List<ChatConversationEntryDTO>>() {
+                });
+
+        assertThat(afterCreate).isNotNull().hasSize(0);
+        assertThat(entries).isNotNull().hasSize(1);
+        assertThat(entries.get(0).getIdempotencyKey()).isEqualTo("update-key");
+        assertThat(entries.get(0).getText()).isEqualTo("Hello");
+        assertThat(entries.get(0).getSequenceNumber()).isEqualTo(1);
+        assertThat(entries.get(0).getStatus()).isEqualTo(EntryStatusDTO.COMPLETED);
+    }
+
+    @Test
+    void addOrUpdateConversationEntryWithoutIdempotencyKeyTest() {
+        var chat = createAiChatForConversationEntries();
+
+        var entry = new CreateOrUpdateConversationEntryDTO();
+        entry.setStatus(EntryStatusDTO.IN_PROGRESS);
+        entry.setText("Hello");
+
+        var exception = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(entry)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(BAD_REQUEST.getStatusCode())
+                .extract().as(ProblemDetailResponseDTO.class);
+
+        assertThat(exception).isNotNull();
+        assertThat(exception.getErrorCode()).isEqualTo("CONSTRAINT_VIOLATIONS");
+    }
+
+    @Test
+    void getConversationEntriesNotFoundTest() {
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", "missing-chat-id")
+                .contentType(APPLICATION_JSON)
+                .get("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NOT_FOUND.getStatusCode());
+    }
+
+    private ChatDTO createAiChatForConversationEntries() {
+        var chatDto = new CreateChatDTO();
+        chatDto.setAppId("appId");
+        chatDto.setType(ChatTypeDTO.AI_CHAT);
+
+        var chat = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .when()
+                .contentType(APPLICATION_JSON)
+                .body(chatDto)
+                .post()
+                .then()
+                .statusCode(CREATED.getStatusCode())
+                .extract()
+                .body().as(ChatDTO.class);
+
+        assertThat(chat).isNotNull();
+        return chat;
+    }
+
     private org.mockserver.model.HttpRequest dispatchRequestForChatId(String chatId) {
         return request()
                 .withPath("/v1/dispatch/chat")

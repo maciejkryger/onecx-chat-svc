@@ -1477,6 +1477,37 @@ class ChatsRestControllerTest extends AbstractTest {
     }
 
     @Test
+    void addOrUpdateConversationEntryShouldRejectNullNewTextTest() {
+        var chat = createAiChatForConversationEntries();
+
+        var create = new CreateOrUpdateConversationEntryDTO();
+        create.setStatus(EntryStatusDTO.IN_PROGRESS);
+        create.setText("Hello");
+        create.setIdempotencyKey("null-new-text");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(create)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var update = new CreateOrUpdateConversationEntryDTO();
+        update.setStatus(EntryStatusDTO.IN_PROGRESS);
+        update.setText(null);
+        update.setIdempotencyKey("null-new-text");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(update)
+                .put("{chatId}/conversation-entries");
+    }
+
+    @Test
     void getConversationEntriesTest() {
 
         var chat = createAiChatForConversationEntries();

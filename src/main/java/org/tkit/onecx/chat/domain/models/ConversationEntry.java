@@ -55,6 +55,11 @@ public class ConversationEntry extends TraceableEntity {
                 && Objects.equals(text, that.text) && type == that.type && status == that.status;
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), tenantId, chat, sequence, idempotencyKey, text, type, status);
+    }
+
     public enum EntryType {
         HUMAN,
         ASSISTANT

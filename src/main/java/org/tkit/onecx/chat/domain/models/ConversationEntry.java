@@ -1,5 +1,7 @@
 package org.tkit.onecx.chat.domain.models;
 
+import java.util.Objects;
+
 import jakarta.persistence.*;
 
 import org.hibernate.annotations.TenantId;
@@ -7,8 +9,6 @@ import org.tkit.quarkus.jpa.models.TraceableEntity;
 
 import lombok.Getter;
 import lombok.Setter;
-
-import java.util.Objects;
 
 @Getter
 @Setter
@@ -46,9 +46,13 @@ public class ConversationEntry extends TraceableEntity {
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof ConversationEntry that)) return false;
-        if (!super.equals(o)) return false;
-        return Objects.equals(tenantId, that.tenantId) && Objects.equals(chat, that.chat) && Objects.equals(sequence, that.sequence) && Objects.equals(idempotencyKey, that.idempotencyKey) && Objects.equals(text, that.text) && type == that.type && status == that.status;
+        if (!(o instanceof ConversationEntry that))
+            return false;
+        if (!super.equals(o))
+            return false;
+        return Objects.equals(tenantId, that.tenantId) && Objects.equals(chat, that.chat)
+                && Objects.equals(sequence, that.sequence) && Objects.equals(idempotencyKey, that.idempotencyKey)
+                && Objects.equals(text, that.text) && type == that.type && status == that.status;
     }
 
     public enum EntryType {

@@ -40,13 +40,11 @@ class ChatRestControllerAIAsyncTest extends AbstractTest {
     public MockServerClient mockServerClient;
 
     static final String MOCK_ID = "MOCK";
-    static final String MOCK_NOTIFICATION_ID = "MOCK_NOTIFICATION";
 
     @BeforeEach
     void resetExpectation() {
         try {
             mockServerClient.clear(MOCK_ID);
-            mockServerClient.clear(MOCK_NOTIFICATION_ID);
         } catch (Exception _) {
             //  mockId not existing
         }

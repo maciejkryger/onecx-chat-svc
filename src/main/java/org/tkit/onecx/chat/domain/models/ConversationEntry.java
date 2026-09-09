@@ -8,6 +8,8 @@ import org.tkit.quarkus.jpa.models.TraceableEntity;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Objects;
+
 @Getter
 @Setter
 @Entity
@@ -41,6 +43,13 @@ public class ConversationEntry extends TraceableEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "STATUS", nullable = false)
     private EntryStatus status;
+
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof ConversationEntry that)) return false;
+        if (!super.equals(o)) return false;
+        return Objects.equals(tenantId, that.tenantId) && Objects.equals(chat, that.chat) && Objects.equals(sequence, that.sequence) && Objects.equals(idempotencyKey, that.idempotencyKey) && Objects.equals(text, that.text) && type == that.type && status == that.status;
+    }
 
     public enum EntryType {
         HUMAN,

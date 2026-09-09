@@ -1361,6 +1361,88 @@ class ChatsRestControllerTest extends AbstractTest {
     }
 
     @Test
+    void addOrUpdateConversationEntryChatNotFoundTest() {
+
+        var entry = new CreateOrUpdateConversationEntryDTO();
+        entry.setStatus(EntryStatusDTO.IN_PROGRESS);
+        entry.setText("Hello");
+        entry.setIdempotencyKey("missing-chat-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", "missing-chat-id")
+                .contentType(APPLICATION_JSON)
+                .body(entry)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NOT_FOUND.getStatusCode());
+    }
+
+    @Test
+    void addOrUpdateConversationEntryNoOpRetryTest() {
+
+        var chat = createAiChatForConversationEntries();
+
+        var request = new CreateOrUpdateConversationEntryDTO();
+        request.setStatus(EntryStatusDTO.COMPLETED);
+        request.setText("Hello world");
+        request.setIdempotencyKey("same-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(request)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        // identyczny retry
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(request)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+    }
+
+    @Test
+    void addOrUpdateConversationEntryShouldAllowUpdateWhenCurrentTextBlankTest() {
+
+        var chat = createAiChatForConversationEntries();
+
+        var create = new CreateOrUpdateConversationEntryDTO();
+        create.setStatus(EntryStatusDTO.IN_PROGRESS);
+        create.setText("");
+        create.setIdempotencyKey("blank-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(create)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var update = new CreateOrUpdateConversationEntryDTO();
+        update.setStatus(EntryStatusDTO.COMPLETED);
+        update.setText("Hello world");
+        update.setIdempotencyKey("blank-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(update)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+    }
+
+    @Test
     void getConversationEntriesTest() {
 
         var chat = createAiChatForConversationEntries();
@@ -1419,15 +1501,6 @@ class ChatsRestControllerTest extends AbstractTest {
         createEntry.setText("Hel");
         createEntry.setIdempotencyKey("update-key");
 
-        var created = given()
-                .auth().oauth2(getKeycloakClientToken("testClient"))
-                .pathParam("chatId", chat.getId())
-                .contentType(APPLICATION_JSON)
-                .body(createEntry)
-                .put("{chatId}/conversation-entries")
-                .then()
-                .statusCode(NO_CONTENT.getStatusCode());
-
         var afterCreate = given()
                 .auth().oauth2(getKeycloakClientToken("testClient"))
                 .pathParam("chatId", chat.getId())
@@ -1464,7 +1537,7 @@ class ChatsRestControllerTest extends AbstractTest {
                 .as(new TypeRef<List<ChatConversationEntryDTO>>() {
                 });
 
-        assertThat(afterCreate).isNotNull().hasSize(0);
+        assertThat(afterCreate).isNotNull().isEmpty();
         assertThat(entries).isNotNull().hasSize(1);
         assertThat(entries.get(0).getIdempotencyKey()).isEqualTo("update-key");
         assertThat(entries.get(0).getText()).isEqualTo("Hello");

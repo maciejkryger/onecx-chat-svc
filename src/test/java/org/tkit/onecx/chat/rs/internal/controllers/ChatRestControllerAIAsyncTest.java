@@ -130,9 +130,18 @@ class ChatRestControllerAIAsyncTest extends AbstractTest {
         assertThat(immediateMessages.getFirst().getType()).isEqualTo(MessageTypeDTO.HUMAN);
 
         await().atMost(Duration.ofSeconds(30))
-                .untilAsserted(() -> mockServerClient
-                        .verify(dispatchRequestForChatId(chat.getId(), apmPrincipalToken, userAuthorization),
-                                org.mockserver.verify.VerificationTimes.atLeast(1)));
+                .pollInterval(Duration.ofMillis(500))
+                .untilAsserted(() -> {
+                    try {
+                        mockServerClient.verify(
+                                dispatchRequestForChatId(chat.getId(), apmPrincipalToken, userAuthorization),
+                                org.mockserver.verify.VerificationTimes.atLeast(1));
+                    } catch (AssertionError e) {
+                        // Log current expectations for debugging
+                        System.out.println("Mock expectations: " + mockServerClient.retrieveRecordedRequests(null));
+                        throw e;
+                    }
+                });
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
             var eventualMessages = given()

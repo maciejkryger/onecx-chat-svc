@@ -1443,6 +1443,40 @@ class ChatsRestControllerTest extends AbstractTest {
     }
 
     @Test
+    void addOrUpdateConversationEntryShouldAllowUpdateWhenCurrentTextNullTest() {
+
+        var chat = createAiChatForConversationEntries();
+
+        var create = new CreateOrUpdateConversationEntryDTO();
+        create.setStatus(EntryStatusDTO.IN_PROGRESS);
+        create.setText(null);
+        create.setIdempotencyKey("null-text-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(create)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var update = new CreateOrUpdateConversationEntryDTO();
+        update.setStatus(EntryStatusDTO.COMPLETED);
+        update.setText("Hello");
+        update.setIdempotencyKey("null-text-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(update)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+    }
+
+    @Test
     void getConversationEntriesTest() {
 
         var chat = createAiChatForConversationEntries();
@@ -1618,12 +1652,85 @@ class ChatsRestControllerTest extends AbstractTest {
     }
 
     @Test
-    void addOrUpdateConversationEntryTerminalStateProtectionTest() {
+    void addOrUpdateConversationEntryMonotonicCheckpointSuccessTest() {
+
+        var chat = createAiChatForConversationEntries();
+
+        var create = new CreateOrUpdateConversationEntryDTO();
+        create.setStatus(EntryStatusDTO.IN_PROGRESS);
+        create.setText("Hello");
+        create.setIdempotencyKey("success-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(create)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        var update = new CreateOrUpdateConversationEntryDTO();
+        update.setStatus(EntryStatusDTO.COMPLETED);
+        update.setText("Hello world");
+        update.setIdempotencyKey("success-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(update)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+    }
+
+    @Test
+    void addOrUpdateConversationEntryCompletedTerminalStateProtectionTest() {
         var chat = createAiChatForConversationEntries();
 
         // First request: create entry and immediately complete it
         var createCompleted = new CreateOrUpdateConversationEntryDTO();
         createCompleted.setStatus(EntryStatusDTO.COMPLETED);
+        createCompleted.setText("Completed entry");
+        createCompleted.setIdempotencyKey("terminal-key");
+
+        given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(createCompleted)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(NO_CONTENT.getStatusCode());
+
+        // Second request: try to update terminal entry (should fail with 500 or 409)
+        var updateTerminal = new CreateOrUpdateConversationEntryDTO();
+        updateTerminal.setStatus(EntryStatusDTO.IN_PROGRESS);
+        updateTerminal.setText("Completed entry - trying to update");
+        updateTerminal.setIdempotencyKey("terminal-key");
+
+        var response = given()
+                .auth().oauth2(getKeycloakClientToken("testClient"))
+                .pathParam("chatId", chat.getId())
+                .contentType(APPLICATION_JSON)
+                .body(updateTerminal)
+                .put("{chatId}/conversation-entries")
+                .then()
+                .statusCode(BAD_REQUEST.getStatusCode())
+                .extract().as(ProblemDetailResponseDTO.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getDetail()).contains("terminal");
+    }
+
+    @Test
+    void addOrUpdateConversationEntryInterruptedTerminalStateProtectionTest() {
+        var chat = createAiChatForConversationEntries();
+
+        // First request: create entry and immediately complete it
+        var createCompleted = new CreateOrUpdateConversationEntryDTO();
+        createCompleted.setStatus(EntryStatusDTO.INTERRUPTED);
         createCompleted.setText("Completed entry");
         createCompleted.setIdempotencyKey("terminal-key");
 

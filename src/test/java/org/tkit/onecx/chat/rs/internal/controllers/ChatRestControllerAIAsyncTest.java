@@ -39,7 +39,7 @@ class ChatRestControllerAIAsyncTest extends AbstractTest {
     @InjectMockServerClient
     public MockServerClient mockServerClient;
 
-    static final String MOCK_ID = "MOCK";
+    static final String MOCK_ID = "MOCK_NOTIFICATION";
 
     @BeforeEach
     void resetExpectation() {

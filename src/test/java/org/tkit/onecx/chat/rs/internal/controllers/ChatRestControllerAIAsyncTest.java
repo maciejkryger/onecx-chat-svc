@@ -131,23 +131,17 @@ class ChatRestControllerAIAsyncTest extends AbstractTest {
 
         await().atMost(Duration.ofSeconds(30))
                 .pollInterval(Duration.ofMillis(500))
-                .until(() -> {
-                    var requests = mockServerClient.retrieveRecordedRequests(null);
-
-                    System.out.println("Recorded requests count: " + requests.length);
-
-                    if (requests.length > 0) {
-                        for (var request : requests) {
-                            System.out.println("Recorded request: " + request);
-                        }
+                .untilAsserted(() -> {
+                    try {
+                        mockServerClient.verify(
+                                dispatchRequestForChatId(chat.getId(), apmPrincipalToken, userAuthorization),
+                                org.mockserver.verify.VerificationTimes.atLeast(1));
+                    } catch (AssertionError e) {
+                        // Log current expectations for debugging
+                        System.out.println("Mock expectations: " + mockServerClient.retrieveRecordedRequests(null));
+                        throw e;
                     }
-
-                    return requests.length > 0;
                 });
-
-        mockServerClient.verify(
-                dispatchRequestForChatId(chat.getId(), apmPrincipalToken, userAuthorization),
-                org.mockserver.verify.VerificationTimes.atLeast(1));
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
             var eventualMessages = given()

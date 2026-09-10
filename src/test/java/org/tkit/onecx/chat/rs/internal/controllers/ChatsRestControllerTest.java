@@ -1323,6 +1323,7 @@ class ChatsRestControllerTest extends AbstractTest {
                 .statusCode(expectedStatus);
     }
 
+    //Conversation Entry part
     @Test
     void createConversationEntryTest() {
         var conversationEntryDto = new CreateOrUpdateConversationEntryDTO();

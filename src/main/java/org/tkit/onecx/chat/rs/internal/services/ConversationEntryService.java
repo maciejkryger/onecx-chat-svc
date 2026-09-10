@@ -12,9 +12,13 @@ import org.tkit.onecx.chat.domain.daos.ConversationEntryDAO;
 import org.tkit.onecx.chat.domain.models.Chat;
 import org.tkit.onecx.chat.domain.models.ConversationEntry;
 import org.tkit.onecx.chat.rs.internal.mappers.ChatMapper;
+import org.tkit.quarkus.jpa.exceptions.ConstraintException;
+import org.tkit.quarkus.jpa.exceptions.DAOException;
 
 import gen.org.tkit.onecx.chat.rs.internal.model.CreateOrUpdateConversationEntryDTO;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @ApplicationScoped
 @Transactional(Transactional.TxType.NOT_SUPPORTED)
 public class ConversationEntryService {
@@ -46,7 +50,21 @@ public class ConversationEntryService {
             return update(existing.get(), actualStatus, newText);
         }
 
-        return create(chat, idempotencyKey, ConversationEntry.EntryType.HUMAN, actualStatus, newText);
+        try {
+            return create(chat, idempotencyKey, ConversationEntry.EntryType.HUMAN, actualStatus, newText);
+        } catch (ConstraintException ex) {
+            // Handle potential race condition where another request created
+            log.debug("Persistence conflict creating conversation entry for chat {} idempotencyKey {}, retrying",
+                    chat.getId(), entry.getIdempotencyKey(), ex);
+            return dao.findByChatAndIdempotencyKey(chat, idempotencyKey)
+                    .map(e -> update(e, actualStatus, newText))
+                    .orElseThrow(() -> ex);
+        } catch (DAOException ex) {
+            // Handle dao exception where another request created
+            log.debug("Dao condition not meet creating conversation entry for chat {} idempotencyKey {} with errorKey {}",
+                    chat.getId(), entry.getIdempotencyKey(), ex.getMessageKey(), ex);
+            throw new DAOException(ex.getMessageKey(), ex);
+        }
     }
 
     /**

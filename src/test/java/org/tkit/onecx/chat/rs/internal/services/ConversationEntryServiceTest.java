@@ -1,6 +1,8 @@
 package org.tkit.onecx.chat.rs.internal.services;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -16,6 +18,7 @@ import org.tkit.onecx.chat.domain.models.Chat;
 import org.tkit.onecx.chat.domain.models.ConversationEntry;
 import org.tkit.onecx.chat.rs.internal.mappers.ChatMapper;
 import org.tkit.quarkus.jpa.exceptions.ConstraintException;
+import org.tkit.quarkus.jpa.exceptions.DAOException;
 
 import gen.org.tkit.onecx.chat.rs.internal.model.CreateOrUpdateConversationEntryDTO;
 import gen.org.tkit.onecx.chat.rs.internal.model.EntryStatusDTO;
@@ -73,5 +76,38 @@ class ConversationEntryServiceTest {
 
         verify(dao, times(2))
                 .findByChatAndIdempotencyKey(chat, "idem-1");
+    }
+
+    @Test
+    void createOrUpdateShouldRethrowDaoExceptionTest() {
+
+        var chat = new Chat();
+        chat.setId("chat-id");
+
+        var dto = new CreateOrUpdateConversationEntryDTO();
+        dto.setIdempotencyKey("key");
+        dto.setText("Hello");
+        dto.setStatus(EntryStatusDTO.COMPLETED);
+
+        when(chatMapper.mapConversationStatus(EntryStatusDTO.COMPLETED))
+                .thenReturn(ConversationEntry.EntryStatus.COMPLETED);
+
+        DAOException daoException = new DAOException(
+                ConversationEntryDAO.ErrorKeys.ERROR_FIND_CONVERSATION_ENTRY_BY_IDEMPOTENCY_KEY,
+                new Exception("test"));
+
+        when(dao.findByChatAndIdempotencyKey(chat, "key"))
+                .thenThrow(daoException);
+
+        DAOException thrown = assertThrows(
+                DAOException.class,
+                () -> service.createOrUpdate(chat, dto));
+
+        assertThat(thrown)
+                .isSameAs(daoException);
+
+        assertThat(thrown.getMessageKey())
+                .isEqualTo(
+                        ConversationEntryDAO.ErrorKeys.ERROR_FIND_CONVERSATION_ENTRY_BY_IDEMPOTENCY_KEY);
     }
 }

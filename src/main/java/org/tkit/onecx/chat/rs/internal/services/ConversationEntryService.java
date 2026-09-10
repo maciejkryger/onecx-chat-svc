@@ -60,10 +60,9 @@ public class ConversationEntryService {
                     .map(e -> update(e, actualStatus, newText))
                     .orElseThrow(() -> ex);
         } catch (DAOException ex) {
-            // Handle dao exception where another request created
-            log.debug("Dao condition not meet creating conversation entry for chat {} idempotencyKey {} with errorKey {}",
-                    chat.getId(), entry.getIdempotencyKey(), ex.getMessageKey(), ex);
-            throw new DAOException(ex.getMessageKey(), ex);
+            log.error("Error creating conversation entry for chat {} idempotencyKey {}",
+                    chat.getId(), entry.getIdempotencyKey(), ex);
+            throw ex;
         }
     }
 
